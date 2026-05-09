@@ -59,7 +59,7 @@
 
     /* ── Stats cards ── */
     .stats-row {
-      display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 28px;
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px;
     }
     .stat-card {
       background: white; border-radius: 18px; padding: 20px;
@@ -154,7 +154,9 @@
     }
 
     .divider { border: none; border-top: 1px solid #e0e4dd; margin: 20px 0; }
+    #registrationChart { width: 100% !important; height: 100% !important; }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 <body>
@@ -212,6 +214,19 @@
           <div class="stat-label">LAST ISSUED</div>
           <div class="stat-value" style="font-size:18px; line-height:48px;" id="stat-last">—</div>
           <div class="stat-sub" id="stat-last-date">No keys yet</div>
+        </div>
+        <div class="stat-card" style="background: #e1eee5;">
+          <div class="stat-label">CONVERSION RATE</div>
+          <div class="stat-value" id="stat-conv">0%</div>
+          <div class="stat-sub">Trials to Pro</div>
+        </div>
+      </div>
+      
+      <!-- Registration Activity Chart -->
+      <div class="panel" style="margin-bottom: 28px; background: white;">
+        <div class="panel-title">📈 License Issuance Activity (Last 14 Days)</div>
+        <div style="height: 220px; width: 100%; position: relative;">
+          <canvas id="registrationChart"></canvas>
         </div>
       </div>
 
@@ -381,9 +396,13 @@
         document.getElementById('copy-btn').textContent = 'Copy Key';
         document.getElementById('copy-btn').classList.remove('copied');
 
-        const history = JSON.parse(localStorage.getItem('td_key_history') || '[]');
-        history.unshift({ name, code, key, date: new Date().toLocaleString('en-PH'), ts: Date.now() });
-        localStorage.setItem('td_key_history', JSON.stringify(history.slice(0, 100)));
+        // Save to Cloud DB
+        const entry = { name, code, key, date: new Date().toLocaleString('en-PH'), ts: Date.now(), revoked: false };
+        await fetch('/api/history', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password, entry })
+        });
         
         document.getElementById('customer-name').value = '';
         loadHistory();
@@ -403,22 +422,53 @@
       btn.classList.add('copied');
     }
 
-    function deleteEntry(ts) {
+    async function deleteEntry(ts) {
       if (confirm('Delete this record?')) {
-        let history = JSON.parse(localStorage.getItem('td_key_history') || '[]');
-        history = history.filter(h => h.ts !== ts);
-        localStorage.setItem('td_key_history', JSON.stringify(history));
+        const password = sessionStorage.getItem('td_admin');
+        await fetch('/api/history', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password, ts })
+        });
         loadHistory();
-        refreshStats();
       }
     }
 
-    function loadHistory() {
-      const history = JSON.parse(localStorage.getItem('td_key_history') || '[]');
-      const searchTerm = document.getElementById('search-history').value.toLowerCase();
+    async function toggleRevoke(code, currentStatus) {
+      const action = currentStatus ? 'restore' : 'revoke';
+      if (confirm(`Are you sure you want to ${action} this device's access?`)) {
+        const password = sessionStorage.getItem('td_admin');
+        const res = await fetch('/api/revoke', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password, deviceCode: code, action })
+        });
+        if (res.ok) loadHistory();
+        else alert('Failed to change status. Ensure Vercel KV is configured.');
+      }
+    }
+
+    let globalHistory = [];
+
+    async function loadHistory() {
       const list = document.getElementById('history-list');
+      if (globalHistory.length === 0) {
+        list.innerHTML = '<div style="text-align:center;padding:40px;color:#6f7a71">Loading cloud database...</div>';
+      }
       
-      const filtered = history.filter(h => 
+      try {
+        const res = await fetch('/api/history');
+        if (res.ok) {
+          const data = await res.json();
+          globalHistory = data.history || [];
+        }
+      } catch (e) {
+        console.error('Failed to load cloud history');
+      }
+
+      const searchTerm = document.getElementById('search-history').value.toLowerCase();
+      
+      const filtered = globalHistory.filter(h => 
         (h.name && h.name.toLowerCase().includes(searchTerm)) || 
         h.code.toLowerCase().includes(searchTerm) ||
         h.key.toLowerCase().includes(searchTerm)
@@ -428,7 +478,7 @@
         list.innerHTML = `
           <div style="font-size:13px;color:#6f7a71;text-align:center;padding:40px 16px;">
             <div style="font-size:32px;margin-bottom:12px;">📭</div>
-            <div>${searchTerm ? 'No matching keys found.' : 'No licenses generated yet.<br/>Create one from the panel on the left.'}</div>
+            <div>${searchTerm ? 'No matching keys found.' : 'No licenses generated yet.'}</div>
           </div>
         `;
         return;
@@ -446,7 +496,7 @@
           </thead>
           <tbody>
             ${filtered.map(h => `
-              <tr style="border-bottom: 1px solid #f1f5ee;">
+              <tr style="border-bottom: 1px solid #f1f5ee; opacity: ${h.revoked ? '0.6' : '1'};">
                 <td style="padding: 14px 4px; font-weight: 800; color: #0a643b; font-size: 12px; vertical-align: top;">
                   ${h.name || 'Unknown'}
                   <div class="history-date">${h.date.split(',')[0]}</div>
@@ -456,10 +506,14 @@
                   <div class="history-key">${h.key}</div>
                 </td>
                 <td style="padding: 14px 4px; vertical-align: top;">
-                  <span style="font-weight:800; padding:4px 8px; border-radius:12px; background:#ceffdb; color:#0a643b; font-size:9px; text-transform:uppercase;">Active</span>
+                  ${h.revoked ? 
+                    '<span style="font-weight:800; padding:4px 8px; border-radius:12px; background:#ffebee; color:#c62828; font-size:9px; text-transform:uppercase;">Revoked</span>' : 
+                    '<span style="font-weight:800; padding:4px 8px; border-radius:12px; background:#ceffdb; color:#0a643b; font-size:9px; text-transform:uppercase;">Active</span>'
+                  }
                 </td>
                 <td style="padding: 14px 4px; text-align: right; vertical-align: top;">
-                  <button onclick="deleteEntry(${h.ts})" style="width: auto; padding: 6px 12px; background: #fff0f0; color: #ad1220; font-size: 11px; font-weight:700; border: none; border-radius:8px;">Revoke</button>
+                  <button onclick="toggleRevoke('${h.code}', ${!!h.revoked})" style="width: auto; padding: 6px 12px; background: ${h.revoked ? '#e8f5e9' : '#fff0f0'}; color: ${h.revoked ? '#2e7d32' : '#ad1220'}; font-size: 11px; font-weight:700; border: none; border-radius:8px; margin-bottom:4px;">${h.revoked ? 'Restore' : 'Revoke'}</button><br/>
+                  <button onclick="deleteEntry(${h.ts})" style="width: auto; padding: 4px 8px; background: transparent; color: #6f7a71; font-size: 10px; font-weight:600; border: none;">Delete</button>
                 </td>
               </tr>
             `).join('')}
@@ -469,15 +523,14 @@
     }
 
     function exportToCSV() {
-      const history = JSON.parse(localStorage.getItem('td_key_history') || '[]');
-      if (history.length === 0) {
+      if (globalHistory.length === 0) {
         alert('No history to export.');
         return;
       }
 
-      let csv = 'Customer Name,Device Code,Activation Key,Date Generated\n';
-      history.forEach(h => {
-        csv += `"${h.name || 'Unknown'}","${h.code}","${h.key}","${h.date}"\n`;
+      let csv = 'Customer Name,Device Code,Activation Key,Date Generated,Status\n';
+      globalHistory.forEach(h => {
+        csv += `"${h.name || 'Unknown'}","${h.code}","${h.key}","${h.date}","${h.revoked ? 'REVOKED' : 'ACTIVE'}"\n`;
       });
 
       const blob = new Blob([csv], { type: 'text/csv' });
@@ -491,27 +544,96 @@
       document.body.removeChild(a);
     }
 
+    let registrationChart = null;
+
     function refreshStats() {
-      const history = JSON.parse(localStorage.getItem('td_key_history') || '[]');
-      document.getElementById('stat-total').textContent = history.length;
+      if (!globalHistory) return;
+      document.getElementById('stat-total').textContent = globalHistory.length;
 
       const now = new Date();
       const monthName = now.toLocaleString('en-PH', { month: 'long', year: 'numeric' });
-      const thisMonth = history.filter(h => {
+      const thisMonth = globalHistory.filter(h => {
         const d = new Date(h.ts || 0);
         return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
       });
       document.getElementById('stat-month').textContent = thisMonth.length;
       document.getElementById('stat-month-label').textContent = monthName;
 
-      if (history.length > 0) {
-        const last = history[0];
+      if (globalHistory.length > 0) {
+        const last = globalHistory[0];
         document.getElementById('stat-last').textContent = last.name && last.name.length > 15 ? last.name.slice(0,12)+'...' : (last.name || last.code);
-        document.getElementById('stat-last-date').textContent = last.date;
+        document.getElementById('stat-last-date').textContent = last.date.split(',')[0];
       } else {
         document.getElementById('stat-last').textContent = '—';
         document.getElementById('stat-last-date').textContent = 'No keys yet';
       }
+
+      // Calculate conversion rate if trial list is loaded
+      if (window.totalTrials > 0) {
+        const rate = Math.round((globalHistory.length / window.totalTrials) * 100);
+        document.getElementById('stat-conv').textContent = rate + '%';
+      }
+
+      updateChart();
+    }
+
+    function updateChart() {
+      const ctx = document.getElementById('registrationChart').getContext('2d');
+      
+      // Calculate last 14 days activity
+      const days = [];
+      const counts = [];
+      for (let i = 13; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const dateStr = d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
+        days.push(dateStr);
+        
+        // Count registrations on this specific day
+        const count = globalHistory.filter(h => {
+          const hd = new Date(h.ts || 0);
+          return hd.getDate() === d.getDate() && hd.getMonth() === d.getMonth() && hd.getFullYear() === d.getFullYear();
+        }).length;
+        counts.push(count);
+      }
+
+      if (registrationChart) registrationChart.destroy();
+
+      registrationChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: days,
+          datasets: [{
+            label: 'Keys Issued',
+            data: counts,
+            borderColor: '#0a643b',
+            backgroundColor: 'rgba(10, 100, 59, 0.1)',
+            borderWidth: 3,
+            tension: 0.4,
+            fill: true,
+            pointBackgroundColor: '#0a643b',
+            pointRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: { stepSize: 1, color: '#6f7a71', font: { size: 10 } },
+              grid: { color: '#f1f5ee' }
+            },
+            x: {
+              ticks: { color: '#6f7a71', font: { size: 10 } },
+              grid: { display: false }
+            }
+          }
+        }
+      });
     }
 
     async function loadTrials() {
@@ -524,6 +646,8 @@
         
         const data = await res.json();
         const logs = data.logs || [];
+        window.totalTrials = logs.length;
+        refreshStats(); // Update conversion rate once trials load
 
         if (logs.length === 0) {
           list.innerHTML = `

@@ -11,7 +11,7 @@ export default async function handler(req, res) {
 
   // Verify Admin Password (simple security)
   const { password } = req.query;
-  const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
+  const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'xyuuki18';
   if (password !== ADMIN_PASSWORD) {
     return res.status(401).json({ message: 'Unauthorized' });
   }
