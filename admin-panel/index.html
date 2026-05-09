@@ -436,7 +436,6 @@
                     body: JSON.stringify({ deviceId: 'ping' })
                 });
                 const data = await res.json();
-                alert(`Diagnostic Result:\nDB URL Found: ${data.db_found}\nVisible Keys: ${data.visible_keys?.join(', ') || 'NONE'}\nVersion: ${data.v}`);
                 if (data.db_found === 'YES' || (config.url && config.token)) {
                     dot.style.background = 'var(--accent)';
                     dot.style.boxShadow = '0 0 10px var(--accent)';
