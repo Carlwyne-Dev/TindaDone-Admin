@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TindaDone Admin</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f7faf4;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    /* ── Layout ── */
+    .page-centered {
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh;
+    }
+    .dashboard-layout {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 32px 0;
+    }
+
+    .card {
+      background: white;
+      border-radius: 24px;
+      padding: 40px;
+      max-width: 480px;
+      width: 100%;
+      box-shadow: 0 4px 40px rgba(10, 100, 59, 0.10);
+    }
+
+    /* ── Logo ── */
+    .logo {
+      display: flex; align-items: center; gap: 14px; margin-bottom: 32px;
+    }
+    .logo-box {
+      width: 52px; height: 52px; background: #0a643b; border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; font-weight: 700; color: white; letter-spacing: 1px;
+    }
+    .logo-text { font-size: 22px; font-weight: 700; color: #181d19; }
+    .logo-sub { font-size: 12px; color: #6f7a71; margin-top: 2px; }
+
+    /* ── Top bar ── */
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 28px;
+    }
+    .topbar-logo { display: flex; align-items: center; gap: 12px; }
+    .topbar-logo .logo-box { width: 40px; height: 40px; font-size: 15px; border-radius: 10px; }
+    .topbar-logo .logo-text { font-size: 18px; }
+    .topbar-logo .logo-sub { font-size: 11px; }
+
+    /* ── Stats cards ── */
+    .stats-row {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px;
+    }
+    .stat-card {
+      background: white; border-radius: 18px; padding: 20px;
+      box-shadow: 0 2px 16px rgba(10,100,59,0.07);
+    }
+    .stat-label { font-size: 11px; font-weight: 700; color: #6f7a71; letter-spacing: 1px; margin-bottom: 6px; }
+    .stat-value { font-size: 48px; font-weight: 800; color: #0a643b; margin-bottom: 4px; }
+    .stat-sub { font-size: 12px; color: #6f7a71; margin-top: 4px; font-weight: 500; }
+
+    /* ── Panels grid ── */
+    .panels-row {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+    }
+    @media (max-width: 640px) {
+      .panels-row { grid-template-columns: 1fr; }
+      .stats-row { grid-template-columns: 1fr 1fr; }
+    }
+
+    .panel {
+      background: white; border-radius: 20px; padding: 24px;
+      box-shadow: 0 2px 16px rgba(10,100,59,0.07);
+    }
+    .generator-panel {
+      background: #f1f7f3;
+      border: 1px solid #e1eee5;
+    }
+    .panel-title {
+      font-size: 13px; font-weight: 700; color: #181d19; margin-bottom: 16px;
+      text-transform: uppercase; letter-spacing: 0.8px;
+    }
+
+    /* ── Form ── */
+    label {
+      font-size: 11px; font-weight: 700; color: #0a643b;
+      letter-spacing: 1.2px; display: block; margin-bottom: 6px;
+    }
+    input {
+      width: 100%; padding: 14px 16px; border-radius: 14px;
+      border: 2px solid #e0e4dd; font-size: 15px; font-family: inherit;
+      outline: none; margin-bottom: 16px; transition: border 0.2s;
+    }
+    input:focus { border-color: #0a643b; }
+    input.error { border-color: #ad1220; }
+    .error-msg {
+      font-size: 12px; color: #ad1220; font-weight: 600;
+      margin-top: -10px; margin-bottom: 12px;
+    }
+    button {
+      width: 100%; background: #0a643b; color: white; border: none;
+      border-radius: 14px; padding: 16px; font-size: 16px; font-weight: 700;
+      cursor: pointer; transition: opacity 0.2s, transform 0.1s;
+    }
+    button:active { transform: scale(0.98); }
+    button:hover { opacity: 0.9; }
+
+    /* ── Login ── */
+    #login-section h2 { font-size: 20px; font-weight: 700; color: #181d19; margin-bottom: 6px; }
+    #login-section p { font-size: 13px; color: #6f7a71; margin-bottom: 24px; }
+
+    /* ── Result ── */
+    .result-box {
+      background: #ceffdb; border-radius: 16px; padding: 20px;
+      text-align: center; margin: 16px 0; display: none;
+    }
+    .result-label { font-size: 10px; font-weight: 500; color: #486551; letter-spacing: 1.5px; margin-bottom: 8px; }
+    .result-key {
+      font-size: 22px; font-weight: 700; color: #0a643b;
+      letter-spacing: 4px; font-family: 'Courier New', monospace; margin-bottom: 6px;
+    }
+    .result-hint { font-size: 11px; color: #6f7a71; }
+    .copy-btn {
+      background: #0a643b; color: white; border: none; border-radius: 10px;
+      padding: 10px 20px; font-size: 13px; font-weight: 700; cursor: pointer;
+      margin-top: 12px; width: auto;
+    }
+    .copy-btn.copied { background: #486551; }
+
+    /* ── History ── */
+    .history-list-container { max-height: 400px; overflow-y: auto; }
+    .history-device { font-weight: 700; color: #181d19; font-family: monospace; font-size: 11px; margin-bottom: 2px;}
+    .history-key { font-weight: 800; color: #0a643b; font-family: monospace; font-size: 12px; }
+    .history-date { color: #6f7a71; font-size: 10px; margin-top: 6px; font-weight: 500;}
+
+    .clear-btn {
+      background: transparent; color: #ad1220; font-size: 12px; font-weight: 600;
+      padding: 6px; margin-top: 10px; border: 1px solid #ffdad6; border-radius: 8px;
+      width: auto;
+    }
+    .logout-btn {
+      background: transparent; color: #6f7a71; font-size: 13px; font-weight: 600;
+      padding: 10px; margin-top: 8px; border: 1px solid #e0e4dd; border-radius: 10px;
+    }
+
+    .divider { border: none; border-top: 1px solid #e0e4dd; margin: 20px 0; }
+    #registrationChart { width: 100% !important; height: 100% !important; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+
+  <!-- ══════════ LOGIN ══════════ -->
+  <div class="page-centered" id="login-wrapper">
+    <div class="card">
+      <div class="logo">
+        <div class="logo-box">TD</div>
+        <div>
+          <div class="logo-text">TindaDone</div>
+          <div class="logo-sub">Admin Panel</div>
+        </div>
+      </div>
+      <div id="login-section">
+        <h2>Admin Login</h2>
+        <p>Enter your admin password to access the dashboard.</p>
+        <label for="admin-pw">ADMIN PASSWORD</label>
+        <input type="password" id="admin-pw" placeholder="Enter password" />
+        <p class="error-msg" id="login-error" style="display:none">Incorrect password.</p>
+        <button onclick="handleLogin()">Login</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ DASHBOARD ══════════ -->
+  <div id="dashboard-wrapper" style="display:none">
+    <div class="dashboard-layout">
+
+      <!-- Top bar -->
+      <div class="topbar">
+        <div class="topbar-logo">
+          <div class="logo-box">TD</div>
+          <div>
+            <div class="logo-text">TindaDone Admin</div>
+            <div class="logo-sub">Manage your clients</div>
+          </div>
+        </div>
+        <button class="logout-btn" onclick="logout()" style="width:auto;padding:8px 16px;">Logout</button>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-label">Cloud Sync</div>
+          <div id="db-status" class="stat-value" style="font-size: 14px; color: #6f7a71;">
+            <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#ffd600; margin-right:6px;"></span>
+            Checking...
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">TOTAL KEYS ISSUED</div>
+          <div class="stat-value" id="stat-total">0</div>
+          <div class="stat-sub">All time</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">THIS MONTH</div>
+          <div class="stat-value" id="stat-month">0</div>
+          <div class="stat-sub" id="stat-month-label">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">LAST ISSUED</div>
+          <div class="stat-value" style="font-size:18px; line-height:48px;" id="stat-last">—</div>
+          <div class="stat-sub" id="stat-last-date">No keys yet</div>
+        </div>
+        <div class="stat-card" style="background: #e1eee5;">
+          <div class="stat-label">CONVERSION RATE</div>
+          <div class="stat-value" id="stat-conv">0%</div>
+          <div class="stat-sub">Trials to Pro</div>
+        </div>
+      </div>
+      
+      <!-- Registration Activity Chart -->
+      <div class="panel" style="margin-bottom: 28px; background: white;">
+        <div class="panel-title">📈 License Issuance Activity (Last 14 Days)</div>
+        <div style="height: 220px; width: 100%; position: relative;">
+          <canvas id="registrationChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Panels -->
+      <div class="panels-row">
+
+        <!-- Key Generator -->
+        <div class="panel generator-panel">
+          <div class="panel-title">🔑 Key Generator</div>
+          
+          <label for="customer-name">CUSTOMER / STORE NAME</label>
+          <input type="text" id="customer-name" placeholder="e.g. Aling Nena's Sari-Sari" />
+
+          <label for="device-code">CUSTOMER DEVICE CODE</label>
+          <input
+            type="text"
+            id="device-code"
+            placeholder="TD-XXXX-XXXX"
+            autocomplete="off"
+            autocorrect="off"
+            autocapitalize="characters"
+            spellcheck="false"
+            maxlength="15"
+          />
+          <p class="error-msg" id="gen-error" style="display:none">Invalid format. Must be TD-XXXX-XXXX.</p>
+          <button onclick="generateKey()">Generate Activation Key</button>
+
+          <div class="result-box" id="result-box">
+            <div class="result-label">ACTIVATION KEY</div>
+            <div class="result-key" id="result-key">—</div>
+            <div class="result-hint">Send this to the customer via chat</div>
+            <button class="copy-btn" id="copy-btn" onclick="copyKey()">Copy Key</button>
+          </div>
+        </div>
+
+        <!-- Recent Trials -->
+        <div class="panel" style="background: #fdfdfd; border: 1px dashed #cedbd2;">
+          <div class="panel-title">📱 Recent Trial Activations</div>
+          <p style="font-size: 11px; color: #6f7a71; margin-bottom: 16px;">Last 50 users who clicked "Start 3-Day Free Trial"</p>
+          
+          <div class="history-list-container" id="trial-list">
+            <div style="font-size:13px;color:#6f7a71;text-align:center;padding:40px 16px;">
+              <div style="font-size:32px;margin-bottom:12px;">⌛</div>
+              <div>Loading trial logs...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- History -->
+        <div class="panel">
+          <div class="panel-title">📋 Keys Issued</div>
+          
+          <div style="margin-bottom: 12px; display: flex; gap: 8px;">
+            <input 
+              type="text" 
+              id="search-history" 
+              placeholder="Search by name or code..." 
+              style="margin-bottom: 0px; padding: 10px; font-size: 13px;"
+              oninput="loadHistory()"
+            />
+            <button onclick="exportToCSV()" style="width: auto; padding: 0 16px; font-size: 13px; background: #486551;">Export</button>
+          </div>
+
+          <div class="history-list-container" id="history-list">
+            <div style="font-size:13px;color:#6f7a71;text-align:center;padding:40px 16px;">
+              <div style="font-size:32px;margin-bottom:12px;">📭</div>
+              <div>No licenses generated yet.<br/>Create one from the panel on the left.</div>
+            </div>
+          </div>
+          <hr class="divider" />
+          <button class="clear-btn" onclick="clearHistory()">Clear All History</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+    async function handleLogin() {
+      const pw = document.getElementById('admin-pw').value;
+      const btn = document.querySelector('#login-section button');
+      btn.textContent = 'Verifying...';
+      
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: pw })
+        });
+        
+        if (res.ok) {
+          document.getElementById('login-wrapper').style.display = 'none';
+          document.getElementById('dashboard-wrapper').style.display = 'block';
+          sessionStorage.setItem('td_admin', pw);
+          refreshStats();
+          loadHistory();
+          loadTrials();
+        } else {
+          document.getElementById('login-error').style.display = 'block';
+          document.getElementById('admin-pw').classList.add('error');
+        }
+      } catch (e) {
+        document.getElementById('login-error').textContent = 'Server error. Try again.';
+        document.getElementById('login-error').style.display = 'block';
+      }
+      btn.textContent = 'Login';
+    }
+
+    window.onload = () => {
+      if (sessionStorage.getItem('td_admin')) {
+        document.getElementById('login-wrapper').style.display = 'none';
+        document.getElementById('dashboard-wrapper').style.display = 'block';
+        refreshStats();
+        checkConnection();
+        loadHistory();
+        loadTrials();
+        checkLocalMigration();
+      }
+    };
+
+    async function checkLocalMigration() {
+      const local = JSON.parse(localStorage.getItem('td_key_history') || '[]');
+      if (local.length > 0) {
+        if (confirm(`Found ${local.length} legacy keys on this device. Would you like to migrate them to the Cloud Database?`)) {
+          const password = sessionStorage.getItem('td_admin');
+          for (const entry of local) {
+            // Check if already in global to prevent duplicates
+            if (!globalHistory.find(h => h.ts === entry.ts)) {
+              await fetch('/api/history', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password, entry })
+              });
+            }
+          }
+          localStorage.removeItem('td_key_history');
+          alert('Migration complete! All keys are now in the Cloud.');
+          loadHistory();
+        }
+      }
+    }
+
+    function formatDeviceCode(el) {
+      // Just Uppercase and strip non-alphanumeric/hyphen
+      // This is much safer for mobile keyboards
+      el.value = el.value.toUpperCase().replace(/[^A-Z0-9-]/g, '');
+    }
+
+    async function checkConnection() {
+      const password = sessionStorage.getItem('td_admin');
+      const statusEl = document.getElementById('db-status');
+      try {
+        const res = await fetch(`/api/history?password=${encodeURIComponent(password)}`);
+        if (res.ok) {
+          statusEl.innerHTML = '<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#2e7d32; margin-right:6px;"></span>Online';
+          statusEl.style.color = '#2e7d32';
+        } else {
+          statusEl.innerHTML = '<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#c62828; margin-right:6px;"></span>Unauthorized';
+          statusEl.style.color = '#c62828';
+        }
+      } catch (e) {
+        statusEl.innerHTML = '<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#c62828; margin-right:6px;"></span>Offline';
+        statusEl.style.color = '#c62828';
+      }
+    }
+
+    async function generateKey() {
+      let rawCode = document.getElementById('device-code').value.trim().toUpperCase();
+      let cleanVal = rawCode.replace(/[^A-Z0-9]/g, '');
+      if (cleanVal.startsWith('TD')) cleanVal = cleanVal.slice(2);
+      
+      const code = `TD-${cleanVal.slice(0, 4)}-${cleanVal.slice(4, 8)}`;
+      const name = document.getElementById('customer-name').value.trim() || 'Unknown Customer';
+      const errEl = document.getElementById('gen-error');
+
+      if (!/^TD-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(code)) {
+        errEl.textContent = 'Invalid format. Must be TD-XXXX-XXXX.';
+        errEl.style.display = 'block';
+        return;
+      }
+      errEl.style.display = 'none';
+      
+      document.getElementById('device-code').value = code;
+
+      const password = sessionStorage.getItem('td_admin');
+      const btn = document.querySelector('.generator-panel button');
+      btn.textContent = 'Generating...';
+
+      try {
+        const res = await fetch('/api/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ deviceCode: code, password })
+        });
+        
+        if (!res.ok) {
+            errEl.textContent = 'Unauthorized. Session expired or bad password.';
+            errEl.style.display = 'block';
+            if (res.status === 401) logout();
+            btn.textContent = 'Generate Activation Key';
+            return;
+        }
+
+        const data = await res.json();
+        const key = data.key;
+
+        document.getElementById('result-key').textContent = key;
+        document.getElementById('result-box').style.display = 'block';
+        document.getElementById('copy-btn').textContent = 'Copy Key';
+        document.getElementById('copy-btn').classList.remove('copied');
+
+        // Save to Cloud DB
+        const entry = { name, code, key, date: new Date().toLocaleString('en-PH'), ts: Date.now(), revoked: false };
+        await fetch('/api/history', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password, entry })
+        });
+        
+        document.getElementById('customer-name').value = '';
+        loadHistory();
+        refreshStats();
+      } catch (e) {
+          errEl.textContent = 'Server error connecting to Vercel Backend.';
+          errEl.style.display = 'block';
+      }
+      btn.textContent = 'Generate Activation Key';
+    }
+
+    function copyKey() {
+      const key = document.getElementById('result-key').textContent;
+      navigator.clipboard.writeText(key);
+      const btn = document.getElementById('copy-btn');
+      btn.textContent = '✓ Copied!';
+      btn.classList.add('copied');
+    }
+
+    async function deleteEntry(ts) {
+      if (confirm('Delete this record?')) {
+        const password = sessionStorage.getItem('td_admin');
+        await fetch('/api/history', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password, ts })
+        });
+        loadHistory();
+      }
+    }
+
+    async function toggleRevoke(code, currentStatus) {
+      const action = currentStatus ? 'restore' : 'revoke';
+      if (confirm(`Are you sure you want to ${action} this device's access?`)) {
+        const password = sessionStorage.getItem('td_admin');
+        const res = await fetch('/api/revoke', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password, deviceCode: code, action })
+        });
+        if (res.ok) loadHistory();
+        else alert('Failed to change status. Ensure Vercel KV is configured.');
+      }
+    }
+
+    let globalHistory = [];
+
+    async function loadHistory() {
+      const password = sessionStorage.getItem('td_admin');
+      const list = document.getElementById('history-list');
+      if (globalHistory.length === 0) {
+        list.innerHTML = '<div style="text-align:center;padding:40px;color:#6f7a71">Loading cloud database...</div>';
+      }
+      
+      try {
+        const res = await fetch(`/api/history?password=${encodeURIComponent(password)}`);
+        const data = await res.json();
+        
+        let history = data.history || [];
+        // Robust parsing
+        history = history.map(h => {
+          if (typeof h === 'string') {
+            try { return JSON.parse(h); } catch(e) { return h; }
+          }
+          return h;
+        });
+        
+        globalHistory = history;
+        renderHistory();
+      } catch (e) {
+        console.error('History fetch error:', e);
+      }
+    }
+
+    function renderHistory() {
+      const list = document.getElementById('history-list');
+      const searchTerm = document.getElementById('search-history').value.toLowerCase();
+      
+      const filtered = globalHistory.filter(h => 
+        (h.name && h.name.toLowerCase().includes(searchTerm)) || 
+        h.code.toLowerCase().includes(searchTerm) ||
+        h.key.toLowerCase().includes(searchTerm)
+      );
+
+      if (filtered.length === 0) {
+        list.innerHTML = `
+          <div style="font-size:13px;color:#6f7a71;text-align:center;padding:40px 16px;">
+            <div style="font-size:32px;margin-bottom:12px;">📭</div>
+            <div>${searchTerm ? 'No matching keys found.' : 'No licenses generated yet.'}</div>
+          </div>
+        `;
+        return;
+      }
+
+      list.innerHTML = `
+        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 11px;">
+          <thead>
+            <tr style="border-bottom: 2px solid #e0e4dd; color: #6f7a71; text-transform: uppercase;">
+              <th style="padding: 10px 4px; font-weight:600;">Store Name</th>
+              <th style="padding: 10px 4px; font-weight:600;">Device & Key</th>
+              <th style="padding: 10px 4px; font-weight:600;">Status</th>
+              <th style="padding: 10px 4px; text-align: right; font-weight:600;">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${filtered.map(h => `
+              <tr style="border-bottom: 1px solid #f1f5ee; opacity: ${h.revoked ? '0.6' : '1'};">
+                <td style="padding: 14px 4px; font-weight: 800; color: #0a643b; font-size: 12px; vertical-align: top;">
+                  ${h.name || 'Unknown'}
+                  <div class="history-date">${h.date.split(',')[0]}</div>
+                </td>
+                <td style="padding: 14px 4px; vertical-align: top;">
+                  <div class="history-device">${h.code}</div>
+                  <div class="history-key">${h.key}</div>
+                </td>
+                <td style="padding: 14px 4px; vertical-align: top;">
+                  ${h.revoked ? 
+                    '<span style="font-weight:800; padding:4px 8px; border-radius:12px; background:#ffebee; color:#c62828; font-size:9px; text-transform:uppercase;">Revoked</span>' : 
+                    (h.activated ? 
+                      '<span style="font-weight:800; padding:4px 8px; border-radius:12px; background:#ceffdb; color:#0a643b; font-size:9px; text-transform:uppercase;">Activated</span>' : 
+                      '<span style="font-weight:800; padding:4px 8px; border-radius:12px; background:#fff3e0; color:#e65100; font-size:9px; text-transform:uppercase;">Generated</span>'
+                    )
+                  }
+                </td>
+                <td style="padding: 14px 4px; text-align: right; vertical-align: top;">
+                  <button onclick="toggleRevoke('${h.code}', ${!!h.revoked})" style="width: auto; padding: 6px 12px; background: ${h.revoked ? '#e8f5e9' : '#fff0f0'}; color: ${h.revoked ? '#2e7d32' : '#ad1220'}; font-size: 11px; font-weight:700; border: none; border-radius:8px; margin-bottom:4px;">${h.revoked ? 'Restore' : 'Revoke'}</button><br/>
+                  <button onclick="deleteEntry(${h.ts})" style="width: auto; padding: 4px 8px; background: transparent; color: #6f7a71; font-size: 10px; font-weight:600; border: none;">Delete</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    }
+
+    function exportToCSV() {
+      if (globalHistory.length === 0) {
+        alert('No history to export.');
+        return;
+      }
+
+      let csv = 'Customer Name,Device Code,Activation Key,Date Generated,Status\n';
+      globalHistory.forEach(h => {
+        csv += `"${h.name || 'Unknown'}","${h.code}","${h.key}","${h.date}","${h.revoked ? 'REVOKED' : 'ACTIVE'}"\n`;
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.setAttribute('hidden', '');
+      a.setAttribute('href', url);
+      a.setAttribute('download', `tindadone_sales_backup_${new Date().toISOString().slice(0,10)}.csv`);
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
+    let registrationChart = null;
+
+    function refreshStats() {
+      if (!globalHistory) return;
+      document.getElementById('stat-total').textContent = globalHistory.length;
+
+      const now = new Date();
+      const monthName = now.toLocaleString('en-PH', { month: 'long', year: 'numeric' });
+      const thisMonth = globalHistory.filter(h => {
+        const d = new Date(h.ts || 0);
+        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      });
+      document.getElementById('stat-month').textContent = thisMonth.length;
+      document.getElementById('stat-month-label').textContent = monthName;
+
+      if (globalHistory.length > 0) {
+        const last = globalHistory[0];
+        document.getElementById('stat-last').textContent = last.name && last.name.length > 15 ? last.name.slice(0,12)+'...' : (last.name || last.code);
+        document.getElementById('stat-last-date').textContent = last.date.split(',')[0];
+      } else {
+        document.getElementById('stat-last').textContent = '—';
+        document.getElementById('stat-last-date').textContent = 'No keys yet';
+      }
+
+      // Calculate conversion rate if trial list is loaded
+      if (window.totalTrials > 0) {
+        const rate = Math.round((globalHistory.length / window.totalTrials) * 100);
+        document.getElementById('stat-conv').textContent = rate + '%';
+      }
+
+      updateChart();
+    }
+
+    function updateChart() {
+      const ctx = document.getElementById('registrationChart').getContext('2d');
+      
+      // Calculate last 14 days activity
+      const days = [];
+      const counts = [];
+      for (let i = 13; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const dateStr = d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
+        days.push(dateStr);
+        
+        // Count registrations on this specific day
+        const count = globalHistory.filter(h => {
+          const hd = new Date(h.ts || 0);
+          return hd.getDate() === d.getDate() && hd.getMonth() === d.getMonth() && hd.getFullYear() === d.getFullYear();
+        }).length;
+        counts.push(count);
+      }
+
+      if (registrationChart) registrationChart.destroy();
+
+      registrationChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: days,
+          datasets: [{
+            label: 'Keys Issued',
+            data: counts,
+            borderColor: '#0a643b',
+            backgroundColor: 'rgba(10, 100, 59, 0.1)',
+            borderWidth: 3,
+            tension: 0.4,
+            fill: true,
+            pointBackgroundColor: '#0a643b',
+            pointRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: { stepSize: 1, color: '#6f7a71', font: { size: 10 } },
+              grid: { color: '#f1f5ee' }
+            },
+            x: {
+              ticks: { color: '#6f7a71', font: { size: 10 } },
+              grid: { display: false }
+            }
+          }
+        }
+      });
+    }
+
+    async function loadTrials() {
+      const password = sessionStorage.getItem('td_admin');
+      const list = document.getElementById('trial-list');
+      
+      try {
+        const res = await fetch(`/api/trial-list?password=${encodeURIComponent(password)}`);
+        if (!res.ok) throw new Error('Failed to fetch');
+        
+        const data = await res.json();
+        let logs = data.logs || [];
+        
+        // Robust parsing
+        logs = logs.map(l => {
+          if (typeof l === 'string') {
+            try { return JSON.parse(l); } catch(e) { return l; }
+          }
+          return l;
+        });
+
+        window.totalTrials = logs.length;
+        refreshStats(); // Update conversion rate once trials load
+
+        if (logs.length === 0) {
+          list.innerHTML = `
+            <div style="font-size:13px;color:#6f7a71;text-align:center;padding:40px 16px;">
+              <div style="font-size:32px;margin-bottom:12px;">🌱</div>
+              <div>No trial starts recorded yet.</div>
+            </div>
+          `;
+          return;
+        }
+
+        list.innerHTML = `
+          <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 11px;">
+            <tbody>
+              ${logs.map(log => {
+                const dateVal = parseInt(log.date);
+                const displayDate = isNaN(dateVal) ? (log.date || 'Unknown') : new Date(dateVal).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                
+                return `
+                <tr style="border-bottom: 1px solid #f1f5ee;">
+                  <td style="padding: 12px 4px;">
+                    <div style="font-weight: 800; color: #0a643b; font-size: 11px;">${log.storeName || 'New User'}</div>
+                    <div style="color: #6f7a71; font-family: monospace; font-size: 9px;">ID: ${log.deviceId}</div>
+                  </td>
+                  <td style="padding: 12px 4px; text-align: right;">
+                    <div style="font-size: 9px; color: #6f7a71;">${displayDate}</div>
+                    <span style="font-size: 8px; color: #0a643b; font-weight: 700;">TRIAL STARTED</span>
+                  </td>
+                </tr>
+              `}).join('')}
+            </tbody>
+          </table>
+        `;
+      } catch (e) {
+        list.innerHTML = `<div style="padding:20px; color:#ad1220; font-size:11px; text-align:center;">Failed to load live logs.</div>`;
+      }
+    }
+
+    function clearHistory() {
+      if (confirm('Clear all key history? This cannot be undone.')) {
+        localStorage.removeItem('td_key_history');
+        loadHistory();
+        refreshStats();
+      }
+    }
+
+    function logout() {
+      sessionStorage.removeItem('td_admin');
+      document.getElementById('login-wrapper').style.display = 'flex';
+      document.getElementById('dashboard-wrapper').style.display = 'none';
+      document.getElementById('admin-pw').value = '';
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('admin-pw')?.addEventListener('keydown', e => {
+        if (e.key === 'Enter') handleLogin();
+      });
+      document.getElementById('device-code')?.addEventListener('keydown', e => {
+        if (e.key === 'Enter') generateKey();
+      });
+    });
+  </script>
+
+</body>
+</html>
