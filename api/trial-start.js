@@ -1,3 +1,18 @@
+// 🔍 CONSISTENT AGGRESSIVE SCANNER
+const getKVEnv = () => {
+  let url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+  let token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+
+  if (!url || !token) {
+    const keys = Object.keys(process.env).sort(); // Sort to ensure consistency!
+    const uKey = keys.find(k => k.includes('REST_API_URL') || k.includes('REST_URL'));
+    const tKey = keys.find(k => k.includes('REST_API_TOKEN') || k.includes('REST_TOKEN'));
+    if (uKey) url = process.env[uKey];
+    if (tKey) token = process.env[tKey];
+  }
+  return { url, token };
+};
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -5,30 +20,14 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
   
   if (req.method === 'OPTIONS') return res.status(200).end();
-  
-  // 🔍 Find every variable starting with KV or UPSTASH
-  const envKeys = Object.keys(process.env).filter(k => k.includes('KV') || k.includes('UPSTASH') || k.includes('REDIS'));
-
-  const getKVEnv = () => {
-    let url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
-    let token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
-    
-    if (!url || !token) {
-      const uKey = envKeys.find(k => k.includes('REST_API_URL') || k.includes('REST_URL'));
-      const tKey = envKeys.find(k => k.includes('REST_API_TOKEN') || k.includes('REST_TOKEN'));
-      if (uKey) url = process.env[uKey];
-      if (tKey) token = process.env[tKey];
-    }
-    return { url, token };
-  };
 
   const { url: KV_URL, token: KV_TOKEN } = getKVEnv();
 
   if (req.query.diag === 'true') {
     return res.status(200).json({
       db_found: KV_URL ? 'YES' : 'NO',
-      visible_keys: envKeys, // This tells us what Vercel actually provided
-      v: '2.1-scanner'
+      db_url_masked: KV_URL ? KV_URL.substring(0, 15) + '...' : 'NONE',
+      v: '3.0-consistent'
     });
   }
 
@@ -37,13 +36,8 @@ export default async function handler(req, res) {
   const { deviceId, storeName } = req.body;
   if (!deviceId) return res.status(400).json({ message: 'Missing deviceId' });
 
-  // ⚠️ CRITICAL FALLBACK: If DB is not linked, we can't save!
   if (!KV_URL || !KV_TOKEN) {
-    return res.status(200).json({ 
-      status: 'error', 
-      message: 'Database not linked in Vercel settings',
-      v: '2.1-scanner'
-    });
+    return res.status(200).json({ status: 'error', message: 'DB not found', v: '3.0' });
   }
 
   try {

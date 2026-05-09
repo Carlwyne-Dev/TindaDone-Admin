@@ -1,10 +1,10 @@
-// 🔍 SHARED AGGRESSIVE SCANNER
+// 🔍 CONSISTENT AGGRESSIVE SCANNER
 const getKVEnv = () => {
   let url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
   let token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
 
   if (!url || !token) {
-    const keys = Object.keys(process.env);
+    const keys = Object.keys(process.env).sort();
     const uKey = keys.find(k => k.includes('REST_API_URL') || k.includes('REST_URL'));
     const tKey = keys.find(k => k.includes('REST_API_TOKEN') || k.includes('REST_TOKEN'));
     if (uKey) url = process.env[uKey];
