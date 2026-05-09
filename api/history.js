@@ -9,21 +9,20 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
-  // ULTIMATE DETECT: Try all possible Vercel KV / Upstash naming patterns
+  // BETTER DETECT: Explicitly look for the HTTPS REST URL
   const getKVEnv = () => {
-    const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || Object.keys(process.env).find(k => k.includes('REST_API_URL'));
-    const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || Object.keys(process.env).find(k => k.includes('REST_API_TOKEN'));
-    return { url: process.env[url] || url, token: process.env[token] || token };
+    const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+    const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+    return { url, token };
   };
 
   const { url: KV_URL, token: KV_TOKEN } = getKVEnv();
   const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'xyuuki18';
   
   if (!KV_URL || !KV_TOKEN) {
-    return res.status(500).json({ 
-      message: 'KV Database not configured', 
-      debug: { hasKeys: Object.keys(process.env).filter(k => k.includes('KV') || k.includes('REDIS')) } 
-    });
+    // FALLBACK: If DB is not linked, don't crash, just return empty data
+    if (req.method === 'GET') return res.status(200).json({ history: [], note: 'DB not linked' });
+    return res.status(200).json({ success: false, message: 'Database connection missing' });
   }
 
   // GET: Fetch History
