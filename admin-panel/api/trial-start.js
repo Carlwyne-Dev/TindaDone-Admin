@@ -5,11 +5,7 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
   
   if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ message: 'Method Not Allowed' });
-
-  const { deviceId, storeName } = req.body;
-  if (!deviceId) return res.status(400).json({ message: 'Missing deviceId' });
-
+  
   const getKVEnv = () => {
     const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
     const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -17,9 +13,23 @@ export default async function handler(req, res) {
   };
 
   const { url: KV_URL, token: KV_TOKEN } = getKVEnv();
-  
+
+  // Diagnostic Mode
+  if (req.query.diag === 'true') {
+    return res.status(200).json({
+      db_found: KV_URL ? 'YES (Masked)' : 'NO',
+      token_found: KV_TOKEN ? 'YES' : 'NO',
+      v: '1.3'
+    });
+  }
+
+  if (req.method !== 'POST') return res.status(405).json({ message: 'Method Not Allowed' });
+
+  const { deviceId, storeName } = req.body;
+  if (!deviceId) return res.status(400).json({ message: 'Missing deviceId' });
+
   if (!KV_URL || !KV_TOKEN) {
-    return res.status(200).json({ status: 'offline-mode', startTime: Date.now().toString(), v: '1.2' });
+    return res.status(200).json({ status: 'offline-mode', startTime: Date.now().toString(), v: '1.3' });
   }
 
   try {
@@ -32,7 +42,7 @@ export default async function handler(req, res) {
     const checkData = await checkRes.json();
     
     if (checkData.result) {
-      return res.status(200).json({ status: 'existing', startTime: checkData.result, v: '1.2' });
+      return res.status(200).json({ status: 'existing', startTime: checkData.result, v: '1.3' });
     }
 
     // 2. Save trial start time
@@ -55,8 +65,8 @@ export default async function handler(req, res) {
       headers: { Authorization: `Bearer ${KV_TOKEN}` }
     });
 
-    return res.status(200).json({ status: 'success', startTime: nowTimestamp, v: '1.2' });
+    return res.status(200).json({ status: 'success', startTime: nowTimestamp, v: '1.3' });
   } catch (error) {
-    return res.status(200).json({ status: 'fallback', startTime: Date.now().toString(), v: '1.2' });
+    return res.status(200).json({ status: 'fallback', startTime: Date.now().toString(), v: '1.3' });
   }
 }

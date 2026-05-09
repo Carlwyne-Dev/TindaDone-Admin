@@ -200,8 +200,8 @@
 
       <!-- Stats -->
       <div class="stats-row">
-        <div class="stat-card">
-          <div class="stat-label">Cloud Sync</div>
+        <div class="stat-card" onclick="showDiagnostics()" style="cursor:help;">
+          <div class="stat-label">Cloud Sync (Click to Diagnose)</div>
           <div id="db-status" class="stat-value" style="font-size: 14px; color: #6f7a71;">
             <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#ffd600; margin-right:6px;"></span>
             Checking...
@@ -380,6 +380,21 @@
       // Just Uppercase and strip non-alphanumeric/hyphen
       // This is much safer for mobile keyboards
       el.value = el.value.toUpperCase().replace(/[^A-Z0-9-]/g, '');
+    }
+
+    async function showDiagnostics() {
+      const password = sessionStorage.getItem('td_admin');
+      try {
+        const res = await fetch(`/api/trial-start?diag=true&password=${encodeURIComponent(password)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ deviceId: 'diag-check' })
+        });
+        const data = await res.json();
+        alert(`Diagnostic Result:\nDB URL Found: ${data.db_found}\nToken Found: ${data.token_found}\nVersion: ${data.v}`);
+      } catch (e) {
+        alert('Diagnostic failed to connect to server.');
+      }
     }
 
     async function checkConnection() {
