@@ -342,8 +342,31 @@
         refreshStats();
         loadHistory();
         loadTrials();
+        checkLocalMigration();
       }
     };
+
+    async function checkLocalMigration() {
+      const local = JSON.parse(localStorage.getItem('td_key_history') || '[]');
+      if (local.length > 0) {
+        if (confirm(`Found ${local.length} legacy keys on this device. Would you like to migrate them to the Cloud Database?`)) {
+          const password = sessionStorage.getItem('td_admin');
+          for (const entry of local) {
+            // Check if already in global to prevent duplicates
+            if (!globalHistory.find(h => h.ts === entry.ts)) {
+              await fetch('/api/history', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password, entry })
+              });
+            }
+          }
+          localStorage.removeItem('td_key_history');
+          alert('Migration complete! All keys are now in the Cloud.');
+          loadHistory();
+        }
+      }
+    }
 
     function formatDeviceCode(el) {
       // Just Uppercase and strip non-alphanumeric/hyphen
