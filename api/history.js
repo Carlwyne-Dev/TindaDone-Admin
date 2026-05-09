@@ -76,7 +76,7 @@ export default async function handler(req, res) {
       await fetch(`${KV_URL}/set/td_key_history`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${KV_TOKEN}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(JSON.stringify(history))
+        body: JSON.stringify(history)
       });
 
       return res.status(200).json({ success: true, history });

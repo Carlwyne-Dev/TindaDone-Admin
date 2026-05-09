@@ -50,7 +50,7 @@ export default async function handler(req, res) {
     await fetch(`${KV_URL}/lpush/recent_trials`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${KV_TOKEN}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(JSON.stringify(logEntry))
+      body: JSON.stringify(logEntry)
     });
 
     // Keep list manageable (last 100 trials)
