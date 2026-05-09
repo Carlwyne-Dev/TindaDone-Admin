@@ -540,17 +540,29 @@
         }
 
         async function handleGenerate() {
-            const name = document.getElementById('gen-name').value;
-            const code = document.getElementById('gen-code').value.toUpperCase().trim();
+            const name = document.getElementById('gen-name').value.trim();
+            let rawCode = document.getElementById('gen-code').value.trim().toUpperCase();
+            let cleanVal = rawCode.replace(/[^A-Z0-9]/g, '');
             const pass = sessionStorage.getItem('td_admin');
             
-            if (!name || code.length < 8) return alert('Missing info');
+            if (!name || cleanVal.length < 4) return alert('Please enter a Customer Name and a valid Device Certificate.');
 
             const btn = document.getElementById('gen-btn');
             btn.innerText = 'Encrypting...';
             
+            // 🔐 Premium Encryption Logic
+            const salt = "TindaDone-Premium-2026";
+            let hash = 0;
+            const combined = cleanVal + salt;
+            for (let i = 0; i < combined.length; i++) {
+                hash = ((hash << 5) - hash) + combined.charCodeAt(i);
+                hash |= 0;
+            }
+            const part1 = Math.abs(hash).toString(36).toUpperCase().substring(0, 4);
+            const part2 = btoa(cleanVal).substring(0, 4).toUpperCase();
+            const finalKey = `TD-${part1}-${part2}-${cleanVal.substring(0, 4)}`;
+
             try {
-                // 1. Handshake with server to get the key
                 const res = await fetch('/api/history', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -558,10 +570,11 @@
                         password: pass, 
                         entry: { 
                             name, 
-                            code, 
-                            key: 'Generating...', // Server will generate based on secret
+                            code: cleanVal, 
+                            key: finalKey, 
                             date: new Date().toLocaleString(),
-                            ts: Date.now()
+                            ts: Date.now(),
+                            activated: false
                         } 
                     })
                 });
@@ -569,10 +582,14 @@
                 const data = await res.json();
                 if (data.success) {
                     document.getElementById('gen-result').style.display = 'block';
-                    document.getElementById('final-key').innerText = code; // Placeholder for now
+                    document.getElementById('final-key').innerText = finalKey;
                     refreshData();
                 }
-            } catch (e) { alert('Failed to generate.'); }
+            } catch (e) { 
+                alert('Cloud save failed, but here is your key: ' + finalKey);
+                document.getElementById('gen-result').style.display = 'block';
+                document.getElementById('final-key').innerText = finalKey;
+            }
             btn.innerText = 'Create Permanent Key';
         }
 
