@@ -1,3 +1,18 @@
+// 🔍 SHARED AGGRESSIVE SCANNER
+const getKVEnv = () => {
+  let url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+  let token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+
+  if (!url || !token) {
+    const keys = Object.keys(process.env);
+    const uKey = keys.find(k => k.includes('REST_API_URL') || k.includes('REST_URL'));
+    const tKey = keys.find(k => k.includes('REST_API_TOKEN') || k.includes('REST_TOKEN'));
+    if (uKey) url = process.env[uKey];
+    if (tKey) token = process.env[tKey];
+  }
+  return { url, token };
+};
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -5,17 +20,8 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
   
   if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ message: 'Method Not Allowed' });
 
   const { licenseKey, deviceId } = req.body;
-  if (!licenseKey || !deviceId) return res.status(400).json({ message: 'Missing info' });
-
-  const getKVEnv = () => {
-    const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
-    const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
-    return { url, token };
-  };
-
   const { url: KV_URL, token: KV_TOKEN } = getKVEnv();
   
   if (!KV_URL || !KV_TOKEN) return res.status(200).json({ success: true });
@@ -25,10 +31,7 @@ export default async function handler(req, res) {
       headers: { Authorization: `Bearer ${KV_TOKEN}` }
     });
     const data = await response.json();
-    let history = [];
-    if (data.result) {
-      history = typeof data.result === 'string' ? JSON.parse(data.result) : data.result;
-    }
+    let history = data.result ? (typeof data.result === 'string' ? JSON.parse(data.result) : data.result) : [];
 
     let found = false;
     history = history.map(h => {
@@ -47,9 +50,6 @@ export default async function handler(req, res) {
       });
       return res.status(200).json({ success: true });
     }
-
     return res.status(404).json({ message: 'Key not found' });
-  } catch (error) {
-    return res.status(500).json({ message: 'Error' });
-  }
+  } catch (error) { return res.status(500).json({ message: 'Error' }); }
 }

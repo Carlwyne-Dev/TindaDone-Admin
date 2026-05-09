@@ -1,3 +1,18 @@
+// 🔍 SHARED AGGRESSIVE SCANNER
+const getKVEnv = () => {
+  let url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+  let token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+
+  if (!url || !token) {
+    const keys = Object.keys(process.env);
+    const uKey = keys.find(k => k.includes('REST_API_URL') || k.includes('REST_URL'));
+    const tKey = keys.find(k => k.includes('REST_API_TOKEN') || k.includes('REST_TOKEN'));
+    if (uKey) url = process.env[uKey];
+    if (tKey) token = process.env[tKey];
+  }
+  return { url, token };
+};
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -6,66 +21,37 @@ export default async function handler(req, res) {
   
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const getKVEnv = () => {
-    const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
-    const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
-    return { url, token };
-  };
-
   const { url: KV_URL, token: KV_TOKEN } = getKVEnv();
   const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'xyuuki18';
-  
-  if (!KV_URL || !KV_TOKEN) {
-    if (req.method === 'GET') return res.status(200).json({ history: [] });
-    return res.status(200).json({ success: false, message: 'DB not linked' });
-  }
 
-  // GET: Fetch History
   if (req.method === 'GET') {
     const { password } = req.query;
     if (password !== ADMIN_PASSWORD) return res.status(401).json({ message: 'Unauthorized' });
+    if (!KV_URL || !KV_TOKEN) return res.status(200).json({ history: [] });
 
     try {
       const response = await fetch(`${KV_URL}/get/td_key_history`, {
         headers: { Authorization: `Bearer ${KV_TOKEN}` }
       });
       const data = await response.json();
-      let history = [];
-      if (data.result) {
-        try {
-          history = typeof data.result === 'string' ? JSON.parse(data.result) : data.result;
-        } catch (e) {
-          history = [];
-        }
-      }
-      return res.status(200).json({ history });
-    } catch (e) {
-      return res.status(500).json({ message: 'Failed to fetch' });
-    }
+      return res.status(200).json({ history: data.result ? (typeof data.result === 'string' ? JSON.parse(data.result) : data.result) : [] });
+    } catch (e) { return res.status(500).json({ message: 'Error' }); }
   }
 
-  // POST/DELETE: Modify History
   if (req.method === 'POST' || req.method === 'DELETE') {
     const { password, entry, ts } = req.body;
     if (password !== ADMIN_PASSWORD) return res.status(401).json({ message: 'Unauthorized' });
+    if (!KV_URL || !KV_TOKEN) return res.status(500).json({ message: 'DB not linked' });
 
     try {
       const getRes = await fetch(`${KV_URL}/get/td_key_history`, {
         headers: { Authorization: `Bearer ${KV_TOKEN}` }
       });
       const getData = await getRes.json();
-      let history = [];
-      if (getData.result) {
-        try {
-          history = typeof getData.result === 'string' ? JSON.parse(getData.result) : getData.result;
-        } catch (e) {
-          history = [];
-        }
-      }
+      let history = getData.result ? (typeof getData.result === 'string' ? JSON.parse(getData.result) : getData.result) : [];
 
       if (req.method === 'POST') {
         history.unshift(entry);
-        history = history.slice(0, 500);
       } else if (ts) {
         history = history.filter(h => h.ts !== ts);
       }
@@ -75,12 +61,7 @@ export default async function handler(req, res) {
         headers: { Authorization: `Bearer ${KV_TOKEN}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(history)
       });
-
       return res.status(200).json({ success: true, history });
-    } catch (e) {
-      return res.status(500).json({ message: 'Update failed' });
-    }
+    } catch (e) { return res.status(500).json({ message: 'Update failed' }); }
   }
-
-  return res.status(405).json({ message: 'Method Not Allowed' });
 }
