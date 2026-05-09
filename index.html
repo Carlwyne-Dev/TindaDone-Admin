@@ -383,6 +383,7 @@
     }
 
     async function checkConnection() {
+      const password = sessionStorage.getItem('td_admin');
       const statusEl = document.getElementById('db-status');
       try {
         const res = await fetch(`/api/history?password=${encodeURIComponent(password)}`);
@@ -499,6 +500,7 @@
     let globalHistory = [];
 
     async function loadHistory() {
+      const password = sessionStorage.getItem('td_admin');
       const list = document.getElementById('history-list');
       if (globalHistory.length === 0) {
         list.innerHTML = '<div style="text-align:center;padding:40px;color:#6f7a71">Loading cloud database...</div>';
