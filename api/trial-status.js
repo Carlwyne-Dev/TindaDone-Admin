@@ -1,51 +1,43 @@
 export default async function handler(req, res) {
-  // CORS Headers
-  res.setHeader('Access-Control-Allow-Credentials', true);
+  // CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  if (req.method !== 'GET') {
-    return res.status(405).json({ message: 'Method Not Allowed' });
-  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  
+  if (req.method === 'OPTIONS') return res.status(200).end();
 
   const { deviceId } = req.query;
-  
-  // AUTO-DETECT: Find any environment variable that looks like a Vercel KV setup
-  const findKVVar = (suffix) => {
-    if (process.env[suffix]) return process.env[suffix];
-    const key = Object.keys(process.env).find(k => k.endsWith(suffix));
-    return key ? process.env[key] : null;
+  if (!deviceId) return res.status(400).json({ message: 'Missing deviceId' });
+
+  // BETTER DETECT: Explicitly look for the HTTPS REST URL
+  const getKVEnv = () => {
+    const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+    const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+    return { url, token };
   };
 
-  const KV_URL = findKVVar('KV_REST_API_URL');
-  const KV_TOKEN = findKVVar('KV_REST_API_TOKEN');
-
+  const { url: KV_URL, token: KV_TOKEN } = getKVEnv();
+  
   if (!KV_URL || !KV_TOKEN) {
-    return res.status(500).json({ message: 'KV Database not configured' });
-  }
-
-  if (!deviceId) {
-    return res.status(400).json({ message: 'Device ID required' });
+    return res.status(200).json({ exists: false });
   }
 
   try {
-    // Check if ID exists in KV
+    // Check for trial start time: trial:DEVICE_ID
     const response = await fetch(`${KV_URL}/get/trial:${deviceId}`, {
       headers: { Authorization: `Bearer ${KV_TOKEN}` }
     });
     const data = await response.json();
 
     if (data.result) {
-      return res.status(200).json({ exists: true, startTime: data.result });
-    } else {
-      return res.status(200).json({ exists: false });
+      return res.status(200).json({ 
+        exists: true, 
+        startTime: data.result 
+      });
     }
+
+    return res.status(200).json({ exists: false });
   } catch (error) {
-    return res.status(500).json({ message: 'Server error' });
+    return res.status(500).json({ message: 'Error checking trial status' });
   }
 }
