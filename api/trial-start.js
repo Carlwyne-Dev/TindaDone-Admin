@@ -45,7 +45,7 @@ export default async function handler(req, res) {
     });
 
     // 3. Add to 'recent_trials' list for Admin Dashboard
-    const logEntry = { deviceId, storeName: storeName || 'Unknown Store', date: now };
+    const logEntry = { deviceId, storeName: storeName || 'Unknown Store', date: Date.now() };
     
     await fetch(`${KV_URL}/lpush/recent_trials`, {
       method: 'POST',
