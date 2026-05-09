@@ -1,13 +1,10 @@
 export default async function handler(req, res) {
-  // CORS Headers
-  res.setHeader('Access-Control-Allow-Credentials', true);
+  // CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS,DELETE');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  
+  if (req.method === 'OPTIONS') return res.status(200).end();
 
   // BETTER DETECT: Explicitly look for the HTTPS REST URL
   const getKVEnv = () => {
@@ -20,9 +17,8 @@ export default async function handler(req, res) {
   const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'xyuuki18';
   
   if (!KV_URL || !KV_TOKEN) {
-    // FALLBACK: If DB is not linked, don't crash, just return empty data
-    if (req.method === 'GET') return res.status(200).json({ history: [], note: 'DB not linked' });
-    return res.status(200).json({ success: false, message: 'Database connection missing' });
+    if (req.method === 'GET') return res.status(200).json({ history: [] });
+    return res.status(200).json({ success: false, message: 'DB not linked' });
   }
 
   // GET: Fetch History
@@ -32,34 +28,51 @@ export default async function handler(req, res) {
         headers: { Authorization: `Bearer ${KV_TOKEN}` }
       });
       const data = await response.json();
-      return res.status(200).json({ history: data.result ? JSON.parse(data.result) : [] });
+      let history = [];
+      if (data.result) {
+        try {
+          history = typeof data.result === 'string' ? JSON.parse(data.result) : data.result;
+        } catch (e) {
+          history = [];
+        }
+      }
+      return res.status(200).json({ history });
     } catch (e) {
-      return res.status(500).json({ message: 'Failed to fetch history', error: e.toString() });
+      return res.status(500).json({ message: 'Failed to fetch history' });
     }
   }
 
-  // POST: Add to History
-  if (req.method === 'POST') {
-    const { password, entry } = req.body;
-    if (password !== (ADMIN_PASSWORD || 'xyuuki18')) {
+  // POST/DELETE: Modify History
+  if (req.method === 'POST' || req.method === 'DELETE') {
+    const { password, entry, ts } = req.body;
+    if (password !== ADMIN_PASSWORD) {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
     try {
+      // 1. Get current
       const getRes = await fetch(`${KV_URL}/get/td_key_history`, {
         headers: { Authorization: `Bearer ${KV_TOKEN}` }
       });
-      const data = await getRes.json();
-      if (data.result) history = JSON.parse(data.result);
+      const getData = await getRes.json();
+      let history = [];
+      if (getData.result) {
+        try {
+          history = typeof getData.result === 'string' ? JSON.parse(getData.result) : getData.result;
+        } catch (e) {
+          history = [];
+        }
+      }
 
-      // 2. Add new entry / filter
+      // 2. Update
       if (req.method === 'POST') {
         history.unshift(entry);
-        history = history.slice(0, 200);
-      } else {
+        history = history.slice(0, 500); // Keep last 500
+      } else if (ts) {
         history = history.filter(h => h.ts !== ts);
       }
 
+      // 3. Save (Standard POST with body)
       await fetch(`${KV_URL}/set/td_key_history`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${KV_TOKEN}`, 'Content-Type': 'application/json' },
@@ -68,36 +81,7 @@ export default async function handler(req, res) {
 
       return res.status(200).json({ success: true, history });
     } catch (e) {
-      return res.status(500).json({ message: 'Failed to save history' });
-    }
-  }
-
-  // DELETE: Remove from History
-  if (req.method === 'DELETE') {
-    const { password, ts } = req.body;
-    if (password !== (ADMIN_PASSWORD || 'xyuuki18')) {
-      return res.status(401).json({ message: 'Unauthorized' });
-    }
-
-    try {
-      let history = [];
-      const getRes = await fetch(`${KV_REST_API_URL}/get/td_key_history`, {
-        headers: { Authorization: `Bearer ${KV_REST_API_TOKEN}` }
-      });
-      const data = await getRes.json();
-      if (data.result) history = JSON.parse(data.result);
-
-      history = history.filter(h => h.ts !== ts);
-
-      await fetch(`${KV_REST_API_URL}/set/td_key_history`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${KV_REST_API_TOKEN}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(JSON.stringify(history))
-      });
-
-      return res.status(200).json({ success: true, history });
-    } catch (e) {
-      return res.status(500).json({ message: 'Failed to delete history' });
+      return res.status(500).json({ message: 'Failed to update history' });
     }
   }
 
