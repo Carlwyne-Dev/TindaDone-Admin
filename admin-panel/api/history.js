@@ -1,11 +1,14 @@
-// 🔍 CONSISTENT AGGRESSIVE SCANNER
+// 🔍 PRECISION AGGRESSIVE SCANNER (v4.0)
 const getKVEnv = () => {
   let url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
   let token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
 
   if (!url || !token) {
     const keys = Object.keys(process.env).sort();
-    const uKey = keys.find(k => k.includes('REST_API_URL') || k.includes('REST_URL'));
+    const uKey = keys.find(k => {
+      const val = process.env[k];
+      return (k.includes('REST_API_URL') || k.includes('REST_URL')) && val && val.startsWith('https://');
+    });
     const tKey = keys.find(k => k.includes('REST_API_TOKEN') || k.includes('REST_TOKEN'));
     if (uKey) url = process.env[uKey];
     if (tKey) token = process.env[tKey];
@@ -30,9 +33,7 @@ export default async function handler(req, res) {
     if (!KV_URL || !KV_TOKEN) return res.status(200).json({ history: [] });
 
     try {
-      const response = await fetch(`${KV_URL}/get/td_key_history`, {
-        headers: { Authorization: `Bearer ${KV_TOKEN}` }
-      });
+      const response = await fetch(`${KV_URL}/get/td_key_history`, { headers: { Authorization: `Bearer ${KV_TOKEN}` } });
       const data = await response.json();
       return res.status(200).json({ history: data.result ? (typeof data.result === 'string' ? JSON.parse(data.result) : data.result) : [] });
     } catch (e) { return res.status(500).json({ message: 'Error' }); }
@@ -44,17 +45,12 @@ export default async function handler(req, res) {
     if (!KV_URL || !KV_TOKEN) return res.status(500).json({ message: 'DB not linked' });
 
     try {
-      const getRes = await fetch(`${KV_URL}/get/td_key_history`, {
-        headers: { Authorization: `Bearer ${KV_TOKEN}` }
-      });
+      const getRes = await fetch(`${KV_URL}/get/td_key_history`, { headers: { Authorization: `Bearer ${KV_TOKEN}` } });
       const getData = await getRes.json();
       let history = getData.result ? (typeof getData.result === 'string' ? JSON.parse(getData.result) : getData.result) : [];
 
-      if (req.method === 'POST') {
-        history.unshift(entry);
-      } else if (ts) {
-        history = history.filter(h => h.ts !== ts);
-      }
+      if (req.method === 'POST') history.unshift(entry);
+      else if (ts) history = history.filter(h => h.ts !== ts);
 
       await fetch(`${KV_URL}/set/td_key_history`, {
         method: 'POST',
