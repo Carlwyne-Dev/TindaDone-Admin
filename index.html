@@ -531,7 +531,10 @@
                 <td style="padding: 14px 4px; vertical-align: top;">
                   ${h.revoked ? 
                     '<span style="font-weight:800; padding:4px 8px; border-radius:12px; background:#ffebee; color:#c62828; font-size:9px; text-transform:uppercase;">Revoked</span>' : 
-                    '<span style="font-weight:800; padding:4px 8px; border-radius:12px; background:#ceffdb; color:#0a643b; font-size:9px; text-transform:uppercase;">Active</span>'
+                    (h.activated ? 
+                      '<span style="font-weight:800; padding:4px 8px; border-radius:12px; background:#ceffdb; color:#0a643b; font-size:9px; text-transform:uppercase;">Activated</span>' : 
+                      '<span style="font-weight:800; padding:4px 8px; border-radius:12px; background:#fff3e0; color:#e65100; font-size:9px; text-transform:uppercase;">Generated</span>'
+                    )
                   }
                 </td>
                 <td style="padding: 14px 4px; text-align: right; vertical-align: top;">
