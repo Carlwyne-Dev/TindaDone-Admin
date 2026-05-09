@@ -8,9 +8,17 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
-  const { KV_REST_API_URL, KV_REST_API_TOKEN } = process.env;
+  // AUTO-DETECT: Find any environment variable that looks like a Vercel KV setup
+  const findKVVar = (suffix) => {
+    if (process.env[suffix]) return process.env[suffix];
+    const key = Object.keys(process.env).find(k => k.endsWith(suffix));
+    return key ? process.env[key] : null;
+  };
+
+  const KV_URL = findKVVar('KV_REST_API_URL');
+  const KV_TOKEN = findKVVar('KV_REST_API_TOKEN');
   
-  if (!KV_REST_API_URL || !KV_REST_API_TOKEN) {
+  if (!KV_URL || !KV_TOKEN) {
     // If KV isn't setup, we just say everything is fine to not break offline apps
     return res.status(200).json({ revoked: false });
   }
@@ -23,8 +31,8 @@ export default async function handler(req, res) {
 
   try {
     // Check if the deviceId is in the revoked set (SISMEMBER returns 1 if true)
-    const response = await fetch(`${KV_REST_API_URL}/sismember/td_revoked_keys/${deviceId}`, {
-      headers: { Authorization: `Bearer ${KV_REST_API_TOKEN}` }
+    const response = await fetch(`${KV_URL}/sismember/td_revoked_keys/${deviceId}`, {
+      headers: { Authorization: `Bearer ${KV_TOKEN}` }
     });
     
     const data = await response.json();

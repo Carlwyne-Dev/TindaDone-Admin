@@ -9,17 +9,26 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
-  const { KV_REST_API_URL, KV_REST_API_TOKEN, ADMIN_PASSWORD } = process.env;
+  // AUTO-DETECT: Find any environment variable that looks like a Vercel KV setup
+  const findKVVar = (suffix) => {
+    if (process.env[suffix]) return process.env[suffix];
+    const key = Object.keys(process.env).find(k => k.endsWith(suffix));
+    return key ? process.env[key] : null;
+  };
+
+  const KV_URL = findKVVar('KV_REST_API_URL');
+  const KV_TOKEN = findKVVar('KV_REST_API_TOKEN');
+  const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'xyuuki18';
   
-  if (!KV_REST_API_URL || !KV_REST_API_TOKEN) {
+  if (!KV_URL || !KV_TOKEN) {
     return res.status(500).json({ message: 'KV Database not configured' });
   }
 
   // GET: Fetch History
   if (req.method === 'GET') {
     try {
-      const response = await fetch(`${KV_REST_API_URL}/get/td_key_history`, {
-        headers: { Authorization: `Bearer ${KV_REST_API_TOKEN}` }
+      const response = await fetch(`${KV_URL}/get/td_key_history`, {
+        headers: { Authorization: `Bearer ${KV_TOKEN}` }
       });
       const data = await response.json();
       return res.status(200).json({ history: data.result ? JSON.parse(data.result) : [] });
@@ -36,24 +45,23 @@ export default async function handler(req, res) {
     }
 
     try {
-      // 1. Get current history
-      let history = [];
-      const getRes = await fetch(`${KV_REST_API_URL}/get/td_key_history`, {
-        headers: { Authorization: `Bearer ${KV_REST_API_TOKEN}` }
+      const getRes = await fetch(`${KV_URL}/get/td_key_history`, {
+        headers: { Authorization: `Bearer ${KV_TOKEN}` }
       });
       const data = await getRes.json();
       if (data.result) history = JSON.parse(data.result);
 
-      // 2. Add new entry
-      history.unshift(entry);
-      
-      // Keep only last 200 records to prevent size limits
-      history = history.slice(0, 200);
+      // 2. Add new entry / filter
+      if (req.method === 'POST') {
+        history.unshift(entry);
+        history = history.slice(0, 200);
+      } else {
+        history = history.filter(h => h.ts !== ts);
+      }
 
-      // 3. Save back to KV
-      await fetch(`${KV_REST_API_URL}/set/td_key_history`, {
+      await fetch(`${KV_URL}/set/td_key_history`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${KV_REST_API_TOKEN}`, 'Content-Type': 'application/json' },
+        headers: { Authorization: `Bearer ${KV_TOKEN}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(JSON.stringify(history))
       });
 
