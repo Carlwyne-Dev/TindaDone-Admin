@@ -408,6 +408,21 @@
             updateStats();
         }
 
+        async function showDiagnostics() {
+            const pass = sessionStorage.getItem('td_admin');
+            try {
+                const res = await fetch(`/api/trial-start?diag=true&password=${encodeURIComponent(pass)}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ deviceId: 'ping' })
+                });
+                const data = await res.json();
+                alert(`Diagnostic Result:\nDB URL Found: ${data.db_found}\nVisible Keys: ${data.visible_keys?.join(', ') || 'NONE'}\nVersion: ${data.v}`);
+            } catch (e) {
+                alert('Diagnostic failed to connect to server.');
+            }
+        }
+
         async function checkConnectivity() {
             const pass = sessionStorage.getItem('td_admin');
             const dot = document.getElementById('db-status-dot');
@@ -421,7 +436,7 @@
                     body: JSON.stringify({ deviceId: 'ping' })
                 });
                 const data = await res.json();
-                
+                alert(`Diagnostic Result:\nDB URL Found: ${data.db_found}\nVisible Keys: ${data.visible_keys?.join(', ') || 'NONE'}\nVersion: ${data.v}`);
                 if (data.db_found === 'YES' || (config.url && config.token)) {
                     dot.style.background = 'var(--accent)';
                     dot.style.boxShadow = '0 0 10px var(--accent)';

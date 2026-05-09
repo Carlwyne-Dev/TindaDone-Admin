@@ -6,32 +6,29 @@ export default async function handler(req, res) {
   
   if (req.method === 'OPTIONS') return res.status(200).end();
   
+  // 🔍 Find every variable starting with KV or UPSTASH
+  const envKeys = Object.keys(process.env).filter(k => k.includes('KV') || k.includes('UPSTASH') || k.includes('REDIS'));
+
   const getKVEnv = () => {
-    // 🔍 AGGRESSIVE SCAN: Look for anything resembling Vercel KV / Upstash
     let url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
     let token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
-
-    if (!url || !token) {
-      // Look for custom prefixes (e.g., MY_DB_REST_API_URL)
-      const keys = Object.keys(process.env);
-      const urlKey = keys.find(k => k.endsWith('_REST_API_URL'));
-      const tokenKey = keys.find(k => k.endsWith('_REST_API_TOKEN'));
-      if (urlKey) url = process.env[urlKey];
-      if (tokenKey) token = process.env[tokenKey];
-    }
     
+    if (!url || !token) {
+      const uKey = envKeys.find(k => k.includes('REST_API_URL') || k.includes('REST_URL'));
+      const tKey = envKeys.find(k => k.includes('REST_API_TOKEN') || k.includes('REST_TOKEN'));
+      if (uKey) url = process.env[uKey];
+      if (tKey) token = process.env[tKey];
+    }
     return { url, token };
   };
 
   const { url: KV_URL, token: KV_TOKEN } = getKVEnv();
 
-  // Diagnostic Mode
   if (req.query.diag === 'true') {
     return res.status(200).json({
-      db_found: KV_URL ? 'YES (Aggressive Scan Found It!)' : 'NO',
-      token_found: KV_TOKEN ? 'YES' : 'NO',
-      env_keys_count: Object.keys(process.env).length,
-      v: '1.4'
+      db_found: KV_URL ? 'YES' : 'NO',
+      visible_keys: envKeys, // This tells us what Vercel actually provided
+      v: '2.1-scanner'
     });
   }
 
@@ -40,8 +37,13 @@ export default async function handler(req, res) {
   const { deviceId, storeName } = req.body;
   if (!deviceId) return res.status(400).json({ message: 'Missing deviceId' });
 
+  // ⚠️ CRITICAL FALLBACK: If DB is not linked, we can't save!
   if (!KV_URL || !KV_TOKEN) {
-    return res.status(200).json({ status: 'offline-mode', startTime: Date.now().toString(), v: '1.4' });
+    return res.status(200).json({ 
+      status: 'error', 
+      message: 'Database not linked in Vercel settings',
+      v: '2.1-scanner'
+    });
   }
 
   try {
@@ -54,7 +56,7 @@ export default async function handler(req, res) {
     const checkData = await checkRes.json();
     
     if (checkData.result) {
-      return res.status(200).json({ status: 'existing', startTime: checkData.result, v: '1.4' });
+      return res.status(200).json({ status: 'existing', startTime: checkData.result });
     }
 
     // 2. Save trial start time
@@ -64,7 +66,7 @@ export default async function handler(req, res) {
       body: JSON.stringify(nowTimestamp)
     });
 
-    // 3. Add to 'recent_trials' list for Admin Dashboard
+    // 3. Add to 'recent_trials' list
     const logEntry = { deviceId, storeName: storeName || 'Unknown Store', date: Date.now() };
     
     await fetch(`${KV_URL}/lpush/recent_trials`, {
@@ -73,12 +75,8 @@ export default async function handler(req, res) {
       body: JSON.stringify(logEntry)
     });
 
-    await fetch(`${KV_URL}/ltrim/recent_trials/0/99`, {
-      headers: { Authorization: `Bearer ${KV_TOKEN}` }
-    });
-
-    return res.status(200).json({ status: 'success', startTime: nowTimestamp, v: '1.4' });
+    return res.status(200).json({ status: 'success', startTime: nowTimestamp });
   } catch (error) {
-    return res.status(200).json({ status: 'fallback', startTime: Date.now().toString(), v: '1.4' });
+    return res.status(500).json({ status: 'error', message: error.message });
   }
 }
