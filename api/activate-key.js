@@ -1,5 +1,4 @@
 export default async function handler(req, res) {
-  // CORS
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
@@ -11,7 +10,6 @@ export default async function handler(req, res) {
   const { licenseKey, deviceId } = req.body;
   if (!licenseKey || !deviceId) return res.status(400).json({ message: 'Missing info' });
 
-  // BETTER DETECT: Explicitly look for the HTTPS REST URL
   const getKVEnv = () => {
     const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
     const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -20,12 +18,9 @@ export default async function handler(req, res) {
 
   const { url: KV_URL, token: KV_TOKEN } = getKVEnv();
   
-  if (!KV_URL || !KV_TOKEN) {
-    return res.status(200).json({ success: true, note: 'Offline mode' });
-  }
+  if (!KV_URL || !KV_TOKEN) return res.status(200).json({ success: true });
 
   try {
-    // 1. Fetch History
     const response = await fetch(`${KV_URL}/get/td_key_history`, {
       headers: { Authorization: `Bearer ${KV_TOKEN}` }
     });
@@ -35,10 +30,9 @@ export default async function handler(req, res) {
       history = typeof data.result === 'string' ? JSON.parse(data.result) : data.result;
     }
 
-    // 2. Find the key and mark as activated
     let found = false;
     history = history.map(h => {
-      if (h.code === licenseKey) {
+      if (h.key === licenseKey || h.code === licenseKey) {
         found = true;
         return { ...h, activated: true, activatedDeviceId: deviceId, activatedAt: new Date().toLocaleString() };
       }
@@ -46,7 +40,6 @@ export default async function handler(req, res) {
     });
 
     if (found) {
-      // 3. Save back to KV
       await fetch(`${KV_URL}/set/td_key_history`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${KV_TOKEN}`, 'Content-Type': 'application/json' },
@@ -55,8 +48,8 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true });
     }
 
-    return res.status(404).json({ message: 'Key not found in history' });
+    return res.status(404).json({ message: 'Key not found' });
   } catch (error) {
-    return res.status(500).json({ message: 'Error activating key' });
+    return res.status(500).json({ message: 'Error' });
   }
 }

@@ -1,5 +1,4 @@
 export default async function handler(req, res) {
-  // CORS
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
@@ -11,7 +10,6 @@ export default async function handler(req, res) {
   const { deviceId, storeName } = req.body;
   if (!deviceId) return res.status(400).json({ message: 'Missing deviceId' });
 
-  // BETTER DETECT: Explicitly look for the HTTPS REST URL
   const getKVEnv = () => {
     const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
     const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -25,7 +23,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const now = new Date().toLocaleString();
+    const nowTimestamp = Date.now().toString();
 
     // 1. Check if trial already exists
     const checkRes = await fetch(`${KV_URL}/get/trial:${deviceId}`, {
@@ -37,11 +35,11 @@ export default async function handler(req, res) {
       return res.status(200).json({ status: 'existing', startTime: checkData.result });
     }
 
-    // 2. Save trial start time (Standard Key-Value)
+    // 2. Save trial start time
     await fetch(`${KV_URL}/set/trial:${deviceId}`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${KV_TOKEN}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(now)
+      body: JSON.stringify(nowTimestamp)
     });
 
     // 3. Add to 'recent_trials' list for Admin Dashboard
@@ -53,14 +51,12 @@ export default async function handler(req, res) {
       body: JSON.stringify(logEntry)
     });
 
-    // Keep list manageable (last 100 trials)
     await fetch(`${KV_URL}/ltrim/recent_trials/0/99`, {
       headers: { Authorization: `Bearer ${KV_TOKEN}` }
     });
 
-    return res.status(200).json({ status: 'success', startTime: now });
+    return res.status(200).json({ status: 'success', startTime: nowTimestamp });
   } catch (error) {
-    console.error('Trial Start Error:', error);
     return res.status(200).json({ status: 'fallback', startTime: Date.now().toString() });
   }
 }

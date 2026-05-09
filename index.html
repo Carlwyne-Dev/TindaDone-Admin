@@ -201,6 +201,13 @@
       <!-- Stats -->
       <div class="stats-row">
         <div class="stat-card">
+          <div class="stat-label">Cloud Sync</div>
+          <div id="db-status" class="stat-value" style="font-size: 14px; color: #6f7a71;">
+            <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#ffd600; margin-right:6px;"></span>
+            Checking...
+          </div>
+        </div>
+        <div class="stat-card">
           <div class="stat-label">TOTAL KEYS ISSUED</div>
           <div class="stat-value" id="stat-total">0</div>
           <div class="stat-sub">All time</div>
@@ -340,6 +347,7 @@
         document.getElementById('login-wrapper').style.display = 'none';
         document.getElementById('dashboard-wrapper').style.display = 'block';
         refreshStats();
+        checkConnection();
         loadHistory();
         loadTrials();
         checkLocalMigration();
@@ -372,6 +380,23 @@
       // Just Uppercase and strip non-alphanumeric/hyphen
       // This is much safer for mobile keyboards
       el.value = el.value.toUpperCase().replace(/[^A-Z0-9-]/g, '');
+    }
+
+    async function checkConnection() {
+      const statusEl = document.getElementById('db-status');
+      try {
+        const res = await fetch(`/api/history?password=${encodeURIComponent(password)}`);
+        if (res.ok) {
+          statusEl.innerHTML = '<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#2e7d32; margin-right:6px;"></span>Online';
+          statusEl.style.color = '#2e7d32';
+        } else {
+          statusEl.innerHTML = '<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#c62828; margin-right:6px;"></span>Unauthorized';
+          statusEl.style.color = '#c62828';
+        }
+      } catch (e) {
+        statusEl.innerHTML = '<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#c62828; margin-right:6px;"></span>Offline';
+        statusEl.style.color = '#c62828';
+      }
     }
 
     async function generateKey() {
