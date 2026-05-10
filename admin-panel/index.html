@@ -615,6 +615,39 @@
             }
         }
 
+        async function syncLocalToCloud() {
+            const pass = sessionStorage.getItem('td_admin');
+            const base = getApiBase();
+            if (base === 'OFFLINE') return alert('Please switch to Online mode before syncing.');
+            
+            const btn = document.getElementById('sync-btn');
+            btn.innerText = 'Syncing...';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch(`${base}/api/history`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        password: pass, 
+                        fullHistory: globalHistory 
+                    })
+                });
+                
+                if (res.ok) {
+                    alert('Sync Successful! Cloud is now matching your local data.');
+                } else {
+                    const err = await res.json();
+                    alert(`Sync Error: ${err.error || 'Check Vercel Deployment'}`);
+                }
+            } catch (e) {
+                alert('Sync failed. Please ensure Vercel is redeployed with the latest v7.0 update.');
+            } finally {
+                btn.innerText = 'Sync to Cloud';
+                btn.disabled = false;
+            }
+        }
+
         async function handleGenerate() {
             const name = document.getElementById('gen-name').value.trim();
             let rawCode = document.getElementById('gen-code').value.trim().toUpperCase();
