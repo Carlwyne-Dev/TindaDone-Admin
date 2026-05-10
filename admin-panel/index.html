@@ -255,6 +255,7 @@
                 <h1>TindaDone<span>.</span>Admin</h1>
             </div>
             <div style="display:flex; gap:12px;">
+                <button class="action-btn" onclick="toggleForceLocal()" id="local-toggle-btn">Force Local</button>
                 <button class="action-btn" onclick="showSetup()">Link Database</button>
                 <button class="action-btn" onclick="logout()" style="border-color:rgba(255,71,87,0.3); color:var(--danger);">Logout</button>
             </div>
@@ -408,16 +409,33 @@
             updateStats();
         }
 
+        // --- 🛰️ Environment Aware Bridge ---
+        function getApiBase() {
+            if (localStorage.getItem('td_force_local') === 'true') return 'OFFLINE';
+            const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            return isLocal ? 'https://tinda-done-admin.vercel.app' : '';
+        }
+
+        function toggleForceLocal() {
+            const current = localStorage.getItem('td_force_local') === 'true';
+            localStorage.setItem('td_force_local', !current);
+            alert(!current ? 'OFFLINE MODE: Dashboard will use local storage only.' : 'ONLINE MODE: Dashboard will sync with Vercel.');
+            window.location.reload();
+        }
+
         async function showDiagnostics() {
+            const base = getApiBase();
+            if (base === 'OFFLINE') return alert('Dashboard is in Local-Only mode.');
+            
             const pass = sessionStorage.getItem('td_admin');
             try {
-                const res = await fetch(`/api/trial-start?diag=true&password=${encodeURIComponent(pass)}`, {
+                const res = await fetch(`${base}/api/trial-start?diag=true&password=${encodeURIComponent(pass)}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ deviceId: 'ping' })
                 });
                 const data = await res.json();
-                alert(`Diagnostic Result:\nDB URL Found: ${data.db_found}\nVisible Keys: ${data.visible_keys?.join(', ') || 'NONE'}\nVersion: ${data.v}`);
+                alert(`Diagnostic Result:\nDB URL Found: ${data.db_found}\nVersion: ${data.v}`);
             } catch (e) {
                 alert('Diagnostic failed to connect to server.');
             }
@@ -427,10 +445,18 @@
             const pass = sessionStorage.getItem('td_admin');
             const dot = document.getElementById('db-status-dot');
             const txt = document.getElementById('db-status-text');
+            const base = getApiBase();
+            
+            if (base === 'OFFLINE') {
+                dot.style.background = 'orange';
+                txt.innerText = 'Local Only';
+                txt.style.color = 'orange';
+                return;
+            }
             
             try {
                 // We use the new trial-start diagnostic if available
-                const res = await fetch(`/api/trial-start?diag=true&password=${encodeURIComponent(pass)}`, {
+                const res = await fetch(`${base}/api/trial-start?diag=true&password=${encodeURIComponent(pass)}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ deviceId: 'ping' })
@@ -452,26 +478,75 @@
             }
         }
 
+        // --- 🧬 Hybrid Storage Engine ---
+        function getLocal(key) {
+            const data = localStorage.getItem(key);
+            return data ? JSON.parse(data) : [];
+        }
+
+        function saveLocal(key, data) {
+            localStorage.setItem(key, JSON.stringify(data));
+        }
+
         async function loadHistory() {
             const pass = sessionStorage.getItem('td_admin');
+            
+            // 1. Load Local Immediately
+            globalHistory = getLocal('td_history');
+            renderHistory();
+            updateStats();
+
+            // 2. Background Cloud Sync
             try {
-                const res = await fetch(`/api/history?password=${encodeURIComponent(pass)}`);
+                const res = await fetch(`${getApiBase()}/api/history?password=${encodeURIComponent(pass)}`);
                 const data = await res.json();
                 
-                globalHistory = (data.history || []).map(h => typeof h === 'string' ? JSON.parse(h) : h);
-                renderHistory();
-            } catch (e) { console.error('History Error', e); }
+                if (data.history && Array.isArray(data.history)) {
+                    const cloudData = data.history.map(h => typeof h === 'string' ? JSON.parse(h) : h);
+                    
+                    // Merge (Cloud takes priority for duplicates based on TS)
+                    const merged = [...cloudData];
+                    globalHistory.forEach(localItem => {
+                        if (!merged.find(m => m.ts === localItem.ts || m.key === localItem.key)) {
+                            merged.push(localItem);
+                        }
+                    });
+
+                    globalHistory = merged.sort((a,b) => b.ts - a.ts).slice(0, 500);
+                    saveLocal('td_history', globalHistory);
+                    renderHistory();
+                    updateStats();
+                }
+            } catch (e) { console.warn('Cloud History Sync Failed - Using Local Only'); }
         }
 
         async function loadTrials() {
             const pass = sessionStorage.getItem('td_admin');
+            
+            // 1. Load Local
+            globalTrials = getLocal('td_trials');
+            renderTrials();
+
+            // 2. Background Cloud Sync
             try {
-                const res = await fetch(`/api/trial-list?password=${encodeURIComponent(pass)}`);
+                const res = await fetch(`${getApiBase()}/api/trial-list?password=${encodeURIComponent(pass)}`);
                 const data = await res.json();
                 
-                globalTrials = (data.logs || []).map(l => typeof l === 'string' ? JSON.parse(l) : l);
-                renderTrials();
-            } catch (e) { console.error('Trial Error', e); }
+                if (data.logs && Array.isArray(data.logs)) {
+                    const cloudData = data.logs.map(l => typeof l === 'string' ? JSON.parse(l) : l);
+                    
+                    const merged = [...cloudData];
+                    globalTrials.forEach(localItem => {
+                        if (!merged.find(m => m.deviceId === localItem.deviceId && m.date === localItem.date)) {
+                            merged.push(localItem);
+                        }
+                    });
+
+                    globalTrials = merged.sort((a,b) => b.date - a.date).slice(0, 100);
+                    saveLocal('td_trials', globalTrials);
+                    renderTrials();
+                }
+            } catch (e) { console.warn('Cloud Trial Sync Failed - Using Local Only'); }
         }
 
         function renderHistory() {
@@ -559,50 +634,66 @@
                 hash |= 0;
             }
             const part1 = Math.abs(hash).toString(36).toUpperCase().substring(0, 4);
-            const part2 = btoa(cleanVal).substring(0, 4).toUpperCase();
-            const finalKey = `TD-${part1}-${part2}-${cleanVal.substring(0, 4)}`;
+            const finalKey = `TD-${part1}-${cleanVal.substring(0, 4)}`;
 
+            const newEntry = { 
+                name, 
+                code: cleanVal, 
+                key: finalKey, 
+                date: new Date().toLocaleString(),
+                ts: Date.now(),
+                activated: false
+            };
+
+            // 1. Save Local First (Instant)
+            globalHistory.unshift(newEntry);
+            saveLocal('td_history', globalHistory);
+            renderHistory();
+            updateStats();
+            document.getElementById('gen-result').style.display = 'block';
+            document.getElementById('final-key').innerText = finalKey;
+
+            // 2. Try Cloud Sync
             try {
-                const res = await fetch('/api/history', {
+                await fetch(`${getApiBase()}/api/history`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
                         password: pass, 
-                        entry: { 
-                            name, 
-                            code: cleanVal, 
-                            key: finalKey, 
-                            date: new Date().toLocaleString(),
-                            ts: Date.now(),
-                            activated: false
-                        } 
+                        entry: newEntry 
                     })
                 });
-                
-                const data = await res.json();
-                if (data.success) {
-                    document.getElementById('gen-result').style.display = 'block';
-                    document.getElementById('final-key').innerText = finalKey;
-                    refreshData();
-                }
-            } catch (e) { 
-                alert('Cloud save failed, but here is your key: ' + finalKey);
-                document.getElementById('gen-result').style.display = 'block';
-                document.getElementById('final-key').innerText = finalKey;
-            }
+            } catch (e) { console.warn('Cloud Save Failed - Data is local only for now'); }
+            
             btn.innerText = 'Create Permanent Key';
         }
 
         async function toggleRevoke(deviceId, current) {
             const pass = sessionStorage.getItem('td_admin');
+            const newState = !current;
+
+            // 1. Update Local Immediately
+            globalHistory = globalHistory.map(h => {
+                if (h.code === deviceId || h.key === deviceId) {
+                    return { ...h, revoked: newState };
+                }
+                return h;
+            });
+            saveLocal('td_history', globalHistory);
+            renderHistory();
+            updateStats();
+
+            // 2. Try Cloud Sync
+            const base = getApiBase();
+            if (base === 'OFFLINE') return;
+
             try {
-                await fetch('/api/revoke', {
+                await fetch(`${base}/api/revoke`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ password: pass, deviceId, revoke: !current })
+                    body: JSON.stringify({ password: pass, deviceId, revoke: newState })
                 });
-                refreshData();
-            } catch (e) { alert('Revoke failed.'); }
+            } catch (e) { console.warn('Cloud Revoke Failed - Data is local only'); }
         }
     </script>
 </body>
