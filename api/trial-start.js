@@ -33,7 +33,8 @@ const getKVEnv = () => {
     const keys = Object.keys(process.env).sort();
     const uKey = keys.find(k => (k.includes('REST_API_URL') || k.includes('REST_URL')) && process.env[k]?.startsWith('https://'));
     const tKey = keys.find(k => k.includes('REST_API_TOKEN') || k.includes('REST_TOKEN'));
-    if (uKey) { url = process.env[uKey]; token = process.env[tKey]; }
+    if (uKey) url = process.env[uKey];
+    if (tKey) token = process.env[tKey];
   }
   return { url, token };
 };
